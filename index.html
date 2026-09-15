@@ -165,6 +165,9 @@ body{
 }
 .linkbtn:hover{border-color:var(--aqua-light);color:var(--aqua-light)}
 .linkbtn:focus-visible{outline:2px solid var(--aqua-light);outline-offset:2px}
+/* Strava's brand orange, reserved for the Connect button and nothing else. */
+.linkbtn.brand{background:#FC4C02;border-color:#FC4C02;color:#fff;font-weight:500}
+.linkbtn.brand:hover{background:#E04402;border-color:#E04402;color:#fff}
 
 /* ---------- modal ---------- */
 .modal{
@@ -244,7 +247,7 @@ footer{text-align:center;margin-top:34px;font-size:13px;color:var(--text-dim)}
     </div>
   </section>
 
-  <footer>Private to you until you share it. Reads your Strava with your own connector — no tokens leave your session.</footer>
+  <footer id="page-foot">Private to you until you share it. Reads your Strava with your own connector — no tokens leave your session.</footer>
 </div>
 
 <div class="modal" id="modal" hidden>
@@ -256,6 +259,7 @@ footer{text-align:center;margin-top:34px;font-size:13px;color:var(--text-dim)}
   </div>
 </div>
 
+<script src="config.js"></script>
 <script>
 "use strict";
 /* ============================ constants ============================ */
@@ -676,6 +680,7 @@ function setConn(kind, text, action) {
   els.connText.textContent = text;
   if (action) {
     els.connAction.hidden = false;
+    els.connAction.className = "linkbtn" + (action.brand ? " brand" : "");
     els.connAction.textContent = action.label;
     els.connAction.onclick = action.fn;
   } else {
@@ -684,7 +689,11 @@ function setConn(kind, text, action) {
   }
 }
 function setStamp() {
-  els.connStamp.textContent = lastStamp ? "Last read " + new Date(lastStamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  var read = lastStamp ? "Last read " + new Date(lastStamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  /* Strava's brand terms want the attribution on any view showing their data,
+     so it stays put rather than being replaced by the timestamp. */
+  var attrib = standalone ? "Powered by Strava" : "";
+  els.connStamp.textContent = attrib && read ? attrib + " \u00b7 " + read : (attrib || read);
 }
 
 /* ============================ strava wiring ============================ */
@@ -732,6 +741,7 @@ function handleMcpError(err) {
 }
 
 function startWatch() {
+  if (standalone) { if (tok) loadActivities(); return; }
   if (!mcpNs || !pet) return;
   if (unwatch) { unwatch(); unwatch = null; }
   var from = Math.min(pet.birthMs, Date.now()) - 2 * 86400000;
@@ -753,9 +763,270 @@ function startWatch() {
 }
 
 function refresh() {
+  if (standalone) { standaloneRefresh(); return; }
   if (!mcpNs) return;
   setConn("warn", "Checking Strava…");
   mcpNs.invalidate(SERVER, TOOL).catch(function () {}).then(function () { startWatch(); });
+}
+
+/* ============================ standalone strava ============================ */
+/* Everything below only runs outside Claude, where there is no connector and
+   the page has to do OAuth itself. The secret half of that exchange lives in
+   the Cloudflare Worker under worker/ — see worker/README.md. */
+
+var CFG = window.PUFFLING_CONFIG || {};
+var standalone = false;
+var tok = null;                  // {access_token, refresh_token, expires_at}
+var refreshing = null;           // in-flight token refresh, shared by callers
+var TOK_KEY = "puffling.strava";
+var STATE_KEY = "puffling.oauth_state";
+var SCOPE = "activity:read_all";
+var EXPIRY_MARGIN = 300;         // refresh this many seconds before expiry
+
+function workerBase() { return String(CFG.workerUrl || "").replace(/\/+$/, ""); }
+function configured() { return !!(CFG.stravaClientId && workerBase()); }
+
+function tokLoad() {
+  try { var r = localStorage.getItem(TOK_KEY); return r ? JSON.parse(r) : null; }
+  catch (e) { return null; }
+}
+function tokSave(t) {
+  try { t ? localStorage.setItem(TOK_KEY, JSON.stringify(t)) : localStorage.removeItem(TOK_KEY); }
+  catch (e) {}
+}
+
+/* The page's own address, with no query or hash. Must match the Authorization
+   Callback Domain on the Strava application exactly. */
+function redirectUri() { return location.origin + location.pathname; }
+
+function randomState() {
+  var a = new Uint8Array(16);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else for (var j = 0; j < 16; j++) a[j] = Math.floor(Math.random() * 256);
+  var out = "";
+  for (var i = 0; i < a.length; i++) out += (a[i] + 256).toString(16).slice(1);
+  return out;
+}
+
+function connect() {
+  var state = randomState();
+  try { sessionStorage.setItem(STATE_KEY, state); } catch (e) {}
+  location.href = "https://www.strava.com/oauth/authorize"
+    + "?client_id=" + encodeURIComponent(CFG.stravaClientId)
+    + "&redirect_uri=" + encodeURIComponent(redirectUri())
+    + "&response_type=code"
+    + "&approval_prompt=auto"
+    + "&scope=" + encodeURIComponent(SCOPE)
+    + "&state=" + encodeURIComponent(state);
+}
+
+function disconnect() {
+  tok = null; tokSave(null); acts = null; offline = true;
+  showConnectPrompt();
+  render();
+}
+
+function showConnectPrompt() {
+  setConn("warn", "Not connected. Your puffling has nothing to eat until it can read your Strava.",
+    { label: "Connect with Strava", fn: connect, brand: true });
+}
+
+/* Strip the query string once a callback has been dealt with, so a reload
+   doesn't replay a code that Strava has already spent. */
+function cleanUrl() {
+  if (window.history && history.replaceState) history.replaceState(null, "", redirectUri());
+}
+
+function post(path, body) {
+  return fetch(workerBase() + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (!res.ok) throw { code: data.error || "worker_error", message: data.message || ("HTTP " + res.status) };
+      return data;
+    });
+  });
+}
+
+function storeTokens(data) {
+  if (!data || !data.access_token) throw { code: "bad_token_response", message: "No access token came back." };
+  tok = {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token || (tok && tok.refresh_token),
+    expires_at: data.expires_at || 0
+  };
+  tokSave(tok);
+  return tok;
+}
+
+/* Returns a token good for at least EXPIRY_MARGIN seconds, refreshing if not.
+   Concurrent callers share one refresh rather than racing to rotate it. */
+function ensureToken() {
+  if (!tok) return Promise.reject({ code: "not_connected", message: "No Strava tokens stored." });
+  if (tok.expires_at && tok.expires_at - EXPIRY_MARGIN > Date.now() / 1000) return Promise.resolve(tok);
+  if (refreshing) return refreshing;
+  if (!tok.refresh_token) return Promise.reject({ code: "needs_reauth", message: "No refresh token stored." });
+
+  refreshing = post("/auth/refresh", { refresh_token: tok.refresh_token })
+    .then(storeTokens)
+    .then(function (t) { refreshing = null; return t; })
+    .catch(function (err) { refreshing = null; throw err; });
+  return refreshing;
+}
+
+/* Strava's REST shape, rewritten as the shape simulate() already reads. */
+function fromStrava(a) {
+  return {
+    name: a.name,
+    sport_type: a.sport_type || a.type || "",
+    /* start_date_local is wall-clock time in the activity's own timezone, but
+       Strava serialises it with a trailing Z. Left alone, Date.parse would read
+       an 07:00 run as 08:00 British summer time. Drop the Z and it parses as
+       local, which is what actTime() wants. */
+    start_local: String(a.start_date_local || "").replace(/Z$/, ""),
+    summary: {
+      /* Relative effort. Only present when the activity had heart rate data;
+         effortOf() falls back to one point per minute when it's missing. */
+      relative_effort: typeof a.suffer_score === "number" ? a.suffer_score : null,
+      moving_time: a.moving_time || 0
+    }
+  };
+}
+
+function loadActivities() {
+  if (!tok) { showConnectPrompt(); return Promise.resolve(); }
+  var per = 100;
+  /* Two days before the pet hatched, so an activity logged just before it
+     existed still counts as the first meal. */
+  var after = Math.floor((Math.min(pet.birthMs, Date.now()) - 2 * 86400000) / 1000);
+
+  return ensureToken().then(function (t) {
+    return fetch(workerBase() + "/api/activities?after=" + after + "&per_page=" + per, {
+      headers: { Authorization: "Bearer " + t.access_token }
+    });
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (!res.ok) throw { code: data.error || "worker_error", message: data.message || ("HTTP " + res.status) };
+      return data;
+    });
+  }).then(function (data) {
+    if (!data || !Array.isArray(data.activities)) throw { code: "bad_shape", message: "Unexpected reply." };
+    var list = data.activities.map(fromStrava);
+    offline = false;
+    retried = false;
+    lastStamp = Date.now();
+    applyPayload({ activities: list, has_next_page: data.activities.length >= per });
+    setConn("ok", "Reading your Strava activity." + (partial ? " Showing your 100 most recent sessions." : ""),
+      { label: "Disconnect", fn: disconnect });
+    setStamp();
+  }).catch(handleStandaloneError);
+}
+
+function handleStandaloneError(err) {
+  var code = (err && err.code) || "worker_error";
+  if (code === "needs_reauth" || code === "not_connected") {
+    tok = null; tokSave(null); offline = true;
+    setConn("bad", "Strava has signed you out.", { label: "Connect with Strava", fn: connect, brand: true });
+  } else if (code === "origin_not_allowed") {
+    offline = true;
+    setConn("bad", "The Worker refuses requests from " + location.origin
+      + ". Add it to ALLOWED_ORIGINS in worker/wrangler.toml and redeploy.");
+  } else if (code === "worker_not_configured") {
+    offline = true;
+    setConn("bad", "The Worker is missing its Strava client ID or secret. See worker/README.md.");
+  } else if (code === "rate_limited") {
+    setConn("warn", "Strava's rate limit has been hit. Showing the last read.",
+      { label: "Try again", fn: standaloneRefresh });
+  } else if (code === "exchange_rejected") {
+    offline = true;
+    setConn("bad", "Strava turned the sign-in down: " + ((err && err.message) || "no detail given") + ".",
+      { label: "Try again", fn: connect, brand: true });
+  } else {
+    setConn("warn", "Couldn't read Strava" + (err && err.message ? " (" + err.message + ")" : "")
+      + ". Showing the last read.", { label: "Try again", fn: standaloneRefresh });
+  }
+  render();
+}
+
+function standaloneRefresh() {
+  if (!configured()) return;
+  if (!tok) { showConnectPrompt(); return; }
+  setConn("warn", "Checking Strava…");
+  loadActivities();
+}
+
+/* Deal with ?code=... or ?error=... on the way back from Strava.
+   Returns true when this load was a callback. */
+function handleCallback() {
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return false; }
+  var code = q.get("code"), denied = q.get("error"), state = q.get("state");
+  if (!code && !denied) return false;
+
+  var expected = null;
+  try { expected = sessionStorage.getItem(STATE_KEY); sessionStorage.removeItem(STATE_KEY); } catch (e) {}
+  cleanUrl();
+
+  if (denied) {
+    offline = true;
+    setConn("warn", denied === "access_denied"
+      ? "You turned Strava down, so there's nothing to feed the pet."
+      : "Strava returned an error: " + denied + ".",
+      { label: "Connect with Strava", fn: connect, brand: true });
+    render();
+    return true;
+  }
+  if (expected && state !== expected) {
+    offline = true;
+    setConn("bad", "That sign-in didn't match the one this page started. Nothing was exchanged.",
+      { label: "Start again", fn: connect, brand: true });
+    render();
+    return true;
+  }
+  /* Strava grants what the athlete ticked, which can be less than we asked for. */
+  var granted = q.get("scope") || "";
+  if (granted && granted.indexOf("activity:read") === -1) {
+    offline = true;
+    setConn("bad", "Sign-in worked, but without permission to read activities, so there's nothing to eat.",
+      { label: "Try again", fn: connect, brand: true });
+    render();
+    return true;
+  }
+
+  setConn("warn", "Finishing sign-in…");
+  post("/auth/token", { code: code })
+    .then(storeTokens)
+    .then(function () { return loadActivities(); })
+    .catch(handleStandaloneError);
+  return true;
+}
+
+function bootStandalone() {
+  standalone = true;
+
+  if (!configured()) {
+    offline = true;
+    render();
+    setConn("warn", "No Strava application is wired up in this copy, so nothing can feed your puffling. "
+      + "It will hatch, starve and die right on schedule.",
+      { label: "How to connect it", fn: function () { window.open(REPO_URL + "#connecting-strava", "_blank", "noopener"); } });
+    return;
+  }
+
+  setStamp();
+  var foot = document.getElementById("page-foot");
+  if (foot) foot.textContent = "Private to you until you share it. Your Strava tokens stay in this browser \u2014 "
+    + "the proxy holds the app secret and never sees your pet.";
+  if (handleCallback()) return;
+
+  tok = tokLoad();
+  if (!tok) { offline = true; render(); showConnectPrompt(); return; }
+
+  setConn("warn", "Checking Strava…");
+  loadActivities();
+  setInterval(function () { if (tok) loadActivities(); }, 300000);
 }
 
 /* ============================ boot ============================ */
@@ -766,10 +1037,7 @@ function boot() {
   setInterval(render, 60000);
 
   if (!window.claude || !window.claude.use) {
-    offline = true;
-    render();
-    setConn("warn", "Standalone build \u2014 there's no Strava connection here yet, so nothing can feed your puffling. It will hatch, starve and die right on schedule.",
-      { label: "Why?", fn: function () { window.open(REPO_URL + "#feeding-it-outside-claude", "_blank", "noopener"); } });
+    bootStandalone();
     return;
   }
 
@@ -805,7 +1073,7 @@ function boot() {
 
 /* ============================ buttons ============================ */
 document.getElementById("btn-a").onclick = function () {
-  if (mcpNs) refresh();
+  if (mcpNs || standalone) refresh();
   screenIdx = 0; render();
 };
 document.getElementById("btn-b").onclick = function () { screenIdx = (screenIdx + 1) % SCREENS.length; render(); };

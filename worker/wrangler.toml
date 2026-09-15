@@ -1,0 +1,15 @@
+name = "puffling-strava"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Every origin the page is served from. Anything not listed here is refused,
+# which is what stops this becoming a general-purpose Strava proxy.
+ALLOWED_ORIGINS = "https://sheppio.github.io,http://localhost:8000"
+
+# Your Strava application's client ID. Public — it also appears in config.js,
+# and the two must match.
+STRAVA_CLIENT_ID = ""
+
+# STRAVA_CLIENT_SECRET is NOT set here. It is a secret:
+#   wrangler secret put STRAVA_CLIENT_SECRET

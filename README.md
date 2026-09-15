@@ -32,25 +32,39 @@ birth to now. So there is nothing to fudge, and the pet keeps living — or dyin
 - **MEALS** — the last ten things that fed it, with the points each one was worth.
 - **GRAVE** — everything you have let starve so far.
 
-## Feeding it outside Claude
+## Connecting Strava
 
-This page was built to run inside a Claude session, where it reads Strava through the account's own connector and
-keeps the pet's name and graveyard in session storage. **The GitHub Pages copy has neither.** The pet hatches, the
-clock runs, and nothing ever feeds it — which is a working demonstration of starvation and not much else.
+Puffling runs in two places, and they get their data differently.
 
-Making the published version actually read Strava is not just a matter of dropping in a client ID. Strava's OAuth
-token exchange requires a client secret, and a static page has nowhere to keep one. The realistic options are:
+**Inside a Claude session** it reads Strava through the account's own connector. Nothing to configure.
 
-1. **A tiny token-exchange proxy** — a Cloudflare Worker or Netlify function holding the secret, with Pages doing
-   the rest. Keeps the site static and the secret off the client.
-2. **Run it locally** — clone, register your own Strava app, and serve it from somewhere that can hold a secret.
-3. **File import** — an Apple Health export, a Garmin Connect export, or loose `.fit`/`.gpx`/`.tcx` files through a
-   file picker. No API, no approval, no server, and it works for people with no Strava account at all. See `TODO.md`.
+**Anywhere else** — GitHub Pages included — it does OAuth itself. That needs a **client secret** for the token
+exchange, and a static page has nowhere to keep one: anything shipped to the browser is public. So there's a small
+Cloudflare Worker in `worker/` that holds the secret and does nothing else.
 
-New Strava API applications are also limited to a single athlete until you request an increase, so the honest
-distribution model is "clone this and register your own app" rather than a hosted site people sign into.
+Out of the box `config.js` is blank, so the published page has nothing to feed the pet — it hatches, starves and
+dies on schedule, which is a working demonstration of starvation and not much else. To wire it up:
 
-Worth remembering: Strava is already the aggregator. Garmin, Samsung Health and Apple Watch all push into it.
+1. Register a Strava application at https://www.strava.com/settings/api
+2. Deploy the Worker with your client secret
+3. Put your client ID and the Worker's URL in `config.js`
+
+**Full instructions, including what this does and doesn't protect: [`worker/README.md`](worker/README.md).**
+
+Once connected the page stores your tokens in `localStorage`, refreshes them when they expire, and re-reads your
+activity every five minutes. Press `FEED` to check immediately, or `Disconnect` to forget the tokens.
+
+### Why not just ship a hosted version?
+
+New Strava API applications are limited to a single athlete until you request an increase, so the honest
+distribution model is "clone this and register your own app" rather than a site people sign into. Sidesteps the
+approval queue entirely.
+
+Worth remembering: Strava is already the aggregator. Garmin, Samsung Health and Apple Watch all push into it, so
+supporting all three is one line telling people to connect their device to Strava first.
+
+For people with no Strava account at all, file import (`.fit`/`.gpx`/`.tcx`, Apple Health and Garmin exports
+through a file picker) needs no API, no approval and no secret. See `TODO.md`.
 
 ## Running it locally
 
@@ -61,7 +75,14 @@ python3 -m http.server 8000
 ```
 
 Then open http://localhost:8000. Opening `index.html` straight off the filesystem works too — there is nothing to
-serve. Pet state falls back to `localStorage`, so it persists per browser.
+build and nothing to serve. Pet state falls back to `localStorage`, so it persists per browser.
+
+To test the Strava connection locally, add `http://localhost:8000` to `ALLOWED_ORIGINS` in `worker/wrangler.toml`
+and redeploy. The Worker's own tests need neither network nor credentials:
+
+```sh
+node worker/test/worker.test.mjs
+```
 
 ## Deploying
 
