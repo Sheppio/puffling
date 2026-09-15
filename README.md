@@ -65,9 +65,10 @@ serve. Pet state falls back to `localStorage`, so it persists per browser.
 
 ## Deploying
 
-`.github/workflows/pages.yml` publishes the repository root to GitHub Pages on every push to `main`. It needs
-Pages set to **Build and deployment → Source → GitHub Actions** in the repository settings; the workflow attempts
-to switch that on itself the first time it runs.
+`.github/workflows/pages.yml` publishes the repository root to GitHub Pages on every push to `main`. There is one
+manual step, once per clone: **Settings → Pages → Build and deployment → Source → GitHub Actions**. The workflow
+cannot do this for you — the Actions token is not permitted to create a Pages site — and every run fails until it
+is set. After that, pushing to `main` deploys.
 
 ## Not affiliated with Strava
 
