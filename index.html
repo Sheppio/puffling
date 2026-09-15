@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puffling — a pet that eats your training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --plum:#2A1B3D;
+  --plum-deep:#1B1028;
+  --plum-soft:#3C2A53;
+  --aqua:#33BFAE;
+  --aqua-dark:#157A70;
+  --aqua-light:#7FE3D6;
+  --lcd:#A9B84C;
+  --lcd-dim:#94A343;
+  --lcd-ink:#1C2410;
+  --hot:#EF4A66;
+  --paper:#EDE7F5;
+  --paper-dim:#B6A6CC;
+  --bg:var(--plum);
+  --text:var(--paper);
+  --text-dim:var(--paper-dim);
+  --panel:var(--plum-soft);
+  --rule:rgba(237,231,245,.16);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="light"]){
+    --bg:var(--plum);
+    --text:var(--paper);
+  }
+}
+:root[data-theme="dark"]{ --bg:var(--plum); --text:var(--paper); }
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(51,191,174,.16), transparent 42%),
+    radial-gradient(circle at 84% 78%, rgba(239,74,102,.12), transparent 45%);
+  background-attachment:fixed;
+  color:var(--text);
+  font-family:"Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  font-size:16px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:32px 20px 72px}
+.masthead{text-align:center;margin-bottom:26px}
+.masthead h1{
+  font-family:"Silkscreen",monospace;
+  font-weight:700;
+  font-size:clamp(26px,6.5vw,46px);
+  letter-spacing:.04em;
+  margin:0 0 8px;
+  color:var(--aqua-light);
+  text-shadow:0 3px 0 var(--aqua-dark), 0 6px 18px rgba(0,0,0,.45);
+}
+.masthead p{margin:0 auto;max-width:44ch;color:var(--text-dim);font-size:15px}
+
+/* ---------- the device ---------- */
+.device{
+  width:min(380px,100%);
+  margin:0 auto;
+  background:linear-gradient(165deg,var(--aqua-light) 0%,var(--aqua) 38%,var(--aqua-dark) 100%);
+  border-radius:52% 52% 46% 46% / 40% 40% 60% 60%;
+  padding:34px 28px 26px;
+  box-shadow:
+    inset 0 5px 0 rgba(255,255,255,.45),
+    inset 0 -8px 14px rgba(0,0,0,.28),
+    0 22px 44px rgba(0,0,0,.46);
+  position:relative;
+}
+.device::after{
+  content:"";position:absolute;left:16%;top:7%;width:26%;height:16%;
+  border-radius:50%;background:rgba(255,255,255,.3);filter:blur(7px);pointer-events:none;
+}
+.bezel{
+  background:var(--plum-deep);
+  border-radius:16px;
+  padding:12px;
+  box-shadow:inset 0 3px 10px rgba(0,0,0,.6);
+}
+.screen{
+  background:var(--lcd);
+  background-image:repeating-linear-gradient(0deg,rgba(28,36,16,.07) 0 1px,transparent 1px 3px);
+  border-radius:6px;
+  min-height:224px;
+  padding:10px 12px;
+  display:flex;flex-direction:column;
+  color:var(--lcd-ink);
+  font-family:"Silkscreen",monospace;
+  font-size:11px;
+  line-height:1.5;
+  overflow:hidden;
+}
+.screen-top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px}
+.screen-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:4px 0}
+.screen-foot{font-size:10px;text-align:center;min-height:15px;opacity:.9}
+.pet-stage{display:flex;align-items:flex-end;justify-content:center;height:112px}
+.pet-stage svg{height:104px;width:104px;image-rendering:pixelated}
+.hearts{display:flex;gap:3px;justify-content:center}
+.hearts svg{width:18px;height:13.5px}
+.petname{font-size:13px;letter-spacing:.06em}
+.blink{animation:blink 1.1s steps(1,end) infinite}
+@keyframes blink{50%{opacity:.25}}
+
+.lines{width:100%;text-align:left;font-size:10.5px;line-height:1.8}
+.lines .row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted rgba(28,36,16,.35);padding:1px 0}
+.lines .row span:last-child{white-space:nowrap}
+.lines h4{margin:0 0 4px;font-size:11px;letter-spacing:.05em}
+.scroll{overflow-y:auto;max-height:150px;width:100%}
+
+.buttons{display:flex;justify-content:center;gap:26px;margin-top:22px}
+.btn{
+  width:58px;height:58px;border-radius:50%;
+  border:none;cursor:pointer;
+  background:radial-gradient(circle at 34% 28%, #FFF3D8 0%, #F2C94C 45%, #C08A16 100%);
+  box-shadow:0 5px 0 #8A6210, inset 0 2px 3px rgba(255,255,255,.7);
+  font-family:"Silkscreen",monospace;font-size:9px;color:#4A3305;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .08s ease, box-shadow .08s ease;
+}
+.btn:hover{transform:translateY(1px);box-shadow:0 4px 0 #8A6210, inset 0 2px 3px rgba(255,255,255,.7)}
+.btn:active{transform:translateY(5px);box-shadow:0 0 0 #8A6210, inset 0 2px 3px rgba(255,255,255,.7)}
+.btn:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+
+/* ---------- panels ---------- */
+.panels{margin-top:34px;display:grid;gap:18px}
+@media(min-width:760px){.panels{grid-template-columns:1fr 1fr}}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--rule);
+  border-radius:14px;
+  padding:18px 20px;
+}
+.panel h2{
+  font-family:"Silkscreen",monospace;font-size:13px;font-weight:700;
+  margin:0 0 10px;color:var(--aqua-light);letter-spacing:.04em;
+}
+.panel p{margin:0 0 10px;font-size:14.5px;color:var(--text)}
+.panel p:last-child{margin-bottom:0}
+.rules{margin:0;padding:0;list-style:none;font-size:14.5px}
+.rules li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--rule)}
+.rules li:first-child{border-top:none}
+.rules b{font-family:"Silkscreen",monospace;font-size:11px;color:var(--aqua-light);white-space:nowrap;padding-top:3px;min-width:74px}
+.status{display:flex;align-items:flex-start;gap:10px;font-size:14.5px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--paper-dim);margin-top:7px;flex:none}
+.dot.ok{background:var(--aqua-light)}
+.dot.warn{background:#F2C94C}
+.dot.bad{background:var(--hot)}
+.status a{color:var(--aqua-light)}
+.mini{
+  font-family:"Silkscreen",monospace;font-size:10px;color:var(--text-dim);
+  margin-top:10px;
+}
+.linkbtn{
+  background:none;border:1px solid var(--rule);color:var(--text);
+  font-family:"Fredoka",sans-serif;font-size:13.5px;
+  padding:6px 12px;border-radius:999px;cursor:pointer;margin-top:10px;
+}
+.linkbtn:hover{border-color:var(--aqua-light);color:var(--aqua-light)}
+.linkbtn:focus-visible{outline:2px solid var(--aqua-light);outline-offset:2px}
+
+/* ---------- modal ---------- */
+.modal{
+  position:fixed;inset:0;background:rgba(15,8,25,.78);
+  display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;
+}
+.modal[hidden]{display:none}
+.card{
+  background:var(--plum-soft);border:1px solid var(--rule);border-radius:16px;
+  padding:22px;max-width:360px;width:100%;
+}
+.card h3{font-family:"Silkscreen",monospace;font-size:13px;margin:0 0 10px;color:var(--aqua-light)}
+.card p{font-size:14.5px;margin:0 0 14px}
+.card input{
+  width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--plum-deep);color:var(--text);font-family:"Fredoka",sans-serif;font-size:16px;
+}
+.card-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.card-actions button{
+  flex:1;min-width:110px;padding:10px 14px;border-radius:999px;border:none;cursor:pointer;
+  font-family:"Fredoka",sans-serif;font-size:14px;font-weight:500;
+}
+.primary{background:var(--aqua);color:#08211E}
+.ghost{background:transparent;border:1px solid var(--rule)!important;color:var(--text)}
+.danger{background:var(--hot);color:#2A0710}
+
+footer{text-align:center;margin-top:34px;font-size:13px;color:var(--text-dim)}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>PUFFLING</h1>
+    <p>A small seabird that lives on your training. Every session you log feeds it. Every quiet day costs it.</p>
+  </header>
+
+  <main class="device" role="application" aria-label="Puffling device">
+    <div class="bezel">
+      <div class="screen">
+        <div class="screen-top">
+          <span id="scr-label">HOME</span>
+          <span id="scr-clock"></span>
+        </div>
+        <div class="screen-body" id="scr-body">
+          <div class="pet-stage"><svg id="sprite" viewBox="0 0 16 16" aria-hidden="true"></svg></div>
+          <div class="petname" id="scr-name">&nbsp;</div>
+          <div class="hearts" id="scr-hearts"></div>
+        </div>
+        <div class="screen-foot" id="scr-foot">Waking up…</div>
+      </div>
+    </div>
+    <div class="buttons">
+      <button class="btn" id="btn-a" title="Check Strava again">FEED</button>
+      <button class="btn" id="btn-b" title="Next screen">SCREEN</button>
+      <button class="btn" id="btn-c" title="Name your pet or start over">CARE</button>
+    </div>
+  </main>
+
+  <section class="panels">
+    <div class="panel">
+      <h2>STRAVA</h2>
+      <div class="status"><span class="dot" id="conn-dot"></span><span id="conn-text">Looking for your Strava connector…</span></div>
+      <button class="linkbtn" id="conn-action" hidden></button>
+      <div class="mini" id="conn-stamp"></div>
+    </div>
+    <div class="panel">
+      <h2>HOW IT EATS</h2>
+      <ul class="rules">
+        <li><b>Food</b><span>Each Strava activity feeds it. Portion size follows relative effort, capped at 55 points so one epic day can&rsquo;t bank a month.</span></li>
+        <li><b>Hunger</b><span>It burns 12.5 points a day. From full, that&rsquo;s eight days of nothing before it&rsquo;s gone.</span></li>
+        <li><b>Rest</b><span>Anything over 70 effort earns a 24-hour recovery window with no hunger at all. Hard days are meant to be followed by easy ones.</span></li>
+        <li><b>Growth</b><span>It grows with age and takes its shape from whatever you do most — running, riding, swimming or lifting.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>Private to you until you share it. Reads your Strava with your own connector — no tokens leave your session.</footer>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title">Care menu</h3>
+    <p id="modal-text">Give your pet a name.</p>
+    <input id="modal-input" maxlength="14" autocomplete="off" aria-label="Pet name">
+    <div class="card-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================ constants ============================ */
+var MAX_HP = 100;
+var DECAY_PER_HOUR = 100 / (8 * 24);       // eight days from full to empty
+var GAIN_CAP = 55;                          // per activity
+var GAIN_RATE = 1.3;                        // hp per relative-effort point
+var HARD_EFFORT = 70;                       // earns a recovery window
+var REST_HOURS = 24;
+var HOUR = 3600000;
+var SERVER = "Strava";
+var TOOL = "list_activities";
+var REPO_URL = "https://github.com/Sheppio/puffling";
+
+/* ============================ pet state ============================ */
+var pet = null;          // {name, birthMs, archive:[]}
+var acts = null;         // array of activities, or null before first load
+var partial = false;     // true when Strava had more pages than we read
+var lastStamp = null;    // ms the shown data was produced
+var screenIdx = 0;
+var SCREENS = ["HOME", "VITALS", "MEALS", "GRAVE"];
+var frame = 0;
+var mcpNs = null, dbDoc = null, unwatch = null, retried = false, seededDb = false;
+var offline = false;    // true when nothing can ever feed it (no Claude connector here)
+
+function newPet(name) {
+  return { name: name || "Pip", birthMs: Date.now(), archive: [] };
+}
+
+/* ============================ storage ============================ */
+function localLoad() {
+  try {
+    var raw = localStorage.getItem("puffling.pet");
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function localSave(p) {
+  try { localStorage.setItem("puffling.pet", JSON.stringify(p)); } catch (e) {}
+}
+var writing = false;
+function savePet() {
+  localSave(pet);
+  if (!dbDoc || writing) return;
+  writing = true;
+  dbDoc.set({ name: pet.name, birthMs: pet.birthMs, archive: pet.archive })
+    .catch(function () {})
+    .then(function () { writing = false; });
+}
+
+/* ============================ simulation ============================ */
+function actTime(a) {
+  var t = Date.parse(a && a.start_local);          // local wall clock, as Strava gives it
+  return isNaN(t) ? 0 : t;
+}
+function effortOf(a) {
+  var s = (a && a.summary) || {};
+  if (typeof s.relative_effort === "number" && s.relative_effort > 0) return s.relative_effort;
+  return (s.moving_time || 0) / 60;                 // fall back to one point per minute
+}
+function gainOf(a) { return Math.min(GAIN_CAP, effortOf(a) * GAIN_RATE); }
+
+function simulate(birthMs, list, nowMs) {
+  var fed = [];
+  var events = (list || [])
+    .filter(function (a) { var t = actTime(a); return t > birthMs && t <= nowMs; })
+    .sort(function (x, y) { return actTime(x) - actTime(y); });
+
+  var rests = events.filter(function (a) { return effortOf(a) >= HARD_EFFORT; })
+    .map(function (a) { return [actTime(a), actTime(a) + REST_HOURS * HOUR]; });
+  function resting(t) {
+    for (var i = 0; i < rests.length; i++) if (t >= rests[i][0] && t < rests[i][1]) return true;
+    return false;
+  }
+
+  var hp = MAX_HP, i = 0, t = birthMs, ticks = 0, died = 0;
+  var lastMealAt = 0;
+  while (t < nowMs && ticks < 24 * 500) {
+    var next = Math.min(t + HOUR, nowMs);
+    while (i < events.length && actTime(events[i]) <= next) {
+      var g = gainOf(events[i]);
+      hp = Math.min(MAX_HP, hp + g);
+      lastMealAt = actTime(events[i]);
+      fed.push({ a: events[i], gain: g });
+      i++;
+    }
+    if (!resting(t)) hp -= DECAY_PER_HOUR * ((next - t) / HOUR);
+    if (hp <= 0) { died = next; hp = 0; break; }
+    t = next; ticks++;
+  }
+
+  var restingNow = resting(nowMs);
+  var hoursLeft = restingNow ? Infinity : hp / DECAY_PER_HOUR;
+  return {
+    hp: Math.max(0, hp),
+    alive: !died,
+    diedMs: died,
+    fed: fed.reverse(),
+    ageMs: (died || nowMs) - birthMs,
+    lastMealAt: lastMealAt,
+    restingNow: restingNow,
+    restUntil: restingNow ? (function () {
+      var out = 0;
+      for (var k = 0; k < rests.length; k++) if (nowMs >= rests[k][0] && nowMs < rests[k][1]) out = Math.max(out, rests[k][1]);
+      return out;
+    })() : 0,
+    hoursLeft: hoursLeft
+  };
+}
+
+function dominantSport(fed) {
+  var tally = {};
+  for (var i = 0; i < fed.length; i++) {
+    var s = (fed[i].a.sport_type || "").toLowerCase();
+    var key = /run|trail|trackfield/.test(s) ? "run"
+      : /ride|bike|cycl|ebike/.test(s) ? "ride"
+      : /swim/.test(s) ? "swim"
+      : /weight|strength|workout|crossfit|yoga|pilates/.test(s) ? "lift"
+      : "walk";
+    tally[key] = (tally[key] || 0) + fed[i].gain;
+  }
+  var best = "walk", top = -1;
+  for (var k in tally) if (tally[k] > top) { top = tally[k]; best = k; }
+  return best;
+}
+
+function stageOf(ageMs) {
+  var d = ageMs / 86400000;
+  if (d < 0.25) return { name: "Egg", scale: 0.55, egg: true };
+  if (d < 2) return { name: "Hatchling", scale: 0.66 };
+  if (d < 7) return { name: "Sprog", scale: 0.78 };
+  if (d < 21) return { name: "Teen", scale: 0.9 };
+  return { name: "Adult", scale: 1 };
+}
+
+function moodOf(hp, alive) {
+  if (!alive) return "dead";
+  if (hp >= 80) return "happy";
+  if (hp >= 55) return "content";
+  if (hp >= 30) return "peckish";
+  if (hp >= 10) return "hungry";
+  return "starving";
+}
+var MOOD_WORD = { happy: "THRIVING", content: "CONTENT", peckish: "PECKISH", hungry: "HUNGRY", starving: "STARVING", dead: "GONE" };
+
+/* ============================ pixel sprites ============================ */
+function blank() { var g = [], y, x; for (y = 0; y < 16; y++) { g.push([]); for (x = 0; x < 16; x++) g[y].push(0); } return g; }
+function span(g, y, x0, x1, v) { if (y < 0 || y > 15) return; for (var x = Math.max(0, x0); x <= Math.min(15, x1); x++) g[y][x] = (v === undefined ? 1 : v); }
+function box(g, y0, y1, x0, x1, v) { for (var y = y0; y <= y1; y++) span(g, y, x0, x1, v); }
+function px(g, y, x, v) { if (y >= 0 && y < 16 && x >= 0 && x < 16) g[y][x] = (v === undefined ? 1 : v); }
+
+function eggSprite(f) {
+  var g = blank();
+  var rows = [[2, 6, 9], [3, 5, 10], [4, 4, 11], [5, 4, 11], [6, 3, 12], [7, 3, 12], [8, 3, 12], [9, 3, 12], [10, 3, 12], [11, 4, 11], [12, 4, 11], [13, 5, 10]];
+  for (var i = 0; i < rows.length; i++) span(g, rows[i][0], rows[i][1], rows[i][2]);
+  // zigzag seam
+  for (var x = 3; x <= 12; x++) px(g, 8 + (x % 2 ? 0 : 1), x, 0);
+  if (f) { px(g, 1, 7); px(g, 1, 8); }      // a little wobble speck
+  return g;
+}
+
+function bodySprite(mood, species, f) {
+  var g = blank();
+  var rows = [[2, 5, 10], [3, 4, 11], [4, 3, 12], [5, 2, 13], [6, 2, 13], [7, 2, 13], [8, 2, 13], [9, 2, 13], [10, 3, 12], [11, 3, 12]];
+  for (var i = 0; i < rows.length; i++) span(g, rows[i][0], rows[i][1], rows[i][2]);
+
+  // legs / base
+  if (species === "ride") {
+    box(g, 12, 12, 5, 10);
+    // two wheels
+    var wheels = [3, 11];
+    for (var w = 0; w < 2; w++) {
+      var cx = wheels[w];
+      span(g, 13, cx - 1, cx + 1); px(g, 14, cx - 2); px(g, 14, cx + 2); span(g, 15, cx - 1, cx + 1);
+      px(g, 14, cx, f ? 1 : 0);
+    }
+  } else if (species === "swim") {
+    span(g, 12, 4, 11); span(g, 13, 5, 10);
+    if (f) { span(g, 14, 3, 7); span(g, 15, 2, 4); }
+    else { span(g, 14, 8, 12); span(g, 15, 11, 13); }
+  } else {
+    var lift = f ? 1 : 0;
+    box(g, 12, 13, 4, 5); box(g, 12, 13, 10, 11);
+    span(g, 14 - lift, 3, 6); span(g, 14, 9, 12);
+  }
+
+  // eyes
+  if (mood === "dead") {
+    box(g, 5, 7, 2, 5, 0); box(g, 5, 7, 10, 13, 0);
+    px(g, 5, 3); px(g, 6, 4); px(g, 7, 5); px(g, 7, 3); px(g, 5, 5);
+    px(g, 5, 10); px(g, 6, 11); px(g, 7, 12); px(g, 7, 10); px(g, 5, 12);
+  } else if (mood === "starving" || mood === "hungry") {
+    box(g, 6, 6, 4, 5, 0); box(g, 6, 6, 10, 11, 0);     // weary slits
+  } else {
+    box(g, 5, 6, 4, 5, 0); box(g, 5, 6, 10, 11, 0);
+    if (mood === "happy" && f) { box(g, 5, 5, 4, 5, 1); box(g, 5, 5, 10, 11, 1); }  // blink
+  }
+
+  // mouth
+  if (mood === "happy" || mood === "content") {
+    px(g, 8, 5, 0); px(g, 9, 6, 0); px(g, 9, 7, 0); px(g, 9, 8, 0); px(g, 9, 9, 0); px(g, 8, 10, 0);
+  } else if (mood === "peckish") {
+    span(g, 9, 6, 9, 0);
+  } else if (mood === "hungry" || mood === "starving") {
+    px(g, 9, 5, 0); px(g, 8, 6, 0); px(g, 8, 7, 0); px(g, 8, 8, 0); px(g, 8, 9, 0); px(g, 9, 10, 0);
+  } else {
+    box(g, 8, 9, 6, 9, 0);
+  }
+
+  // species markings
+  if (species === "run") {
+    span(g, 4, 1, 14); span(g, 3, 12, 15); px(g, 2, 14); px(g, 2, 15);   // headband with a flapping tie
+    if (f) { px(g, 7, 0); px(g, 9, 0); } else { px(g, 6, 0); px(g, 8, 0); }  // speed lines
+  } else if (species === "ride") {
+    span(g, 1, 5, 10); span(g, 2, 4, 11); span(g, 3, 3, 12); px(g, 4, 2); px(g, 4, 13);
+  } else if (species === "swim") {
+    box(g, 5, 6, 3, 5, 0); box(g, 5, 6, 10, 12, 0);   // goggles
+    px(g, 7, 0); px(g, 8, 0); px(g, 8, 1); px(g, 7, 15); px(g, 8, 15); px(g, 8, 14);      // side fins
+  } else if (species === "lift") {
+    var ay = f ? 6 : 7;
+    span(g, ay, 0, 2); span(g, ay, 13, 15);
+    box(g, ay - 1, ay + 1, 0, 0); box(g, ay - 1, ay + 1, 15, 15);
+  } else {
+    px(g, 1, 8); px(g, 0, 8); px(g, 0, 7);   // antenna
+  }
+  return g;
+}
+
+function graveSprite() {
+  var g = blank();
+  span(g, 3, 6, 9); span(g, 4, 5, 10);
+  box(g, 5, 12, 4, 11);
+  box(g, 6, 11, 7, 8, 0);      // carve the upright
+  box(g, 8, 9, 5, 10, 0);      // carve the crossbar
+  span(g, 13, 2, 13); span(g, 14, 1, 14);
+  return g;
+}
+
+function gridToSvg(g, color) {
+  var out = "", y, x;
+  for (y = 0; y < 16; y++) {
+    x = 0;
+    while (x < 16) {
+      if (g[y][x]) {
+        var s = x; while (x < 16 && g[y][x]) x++;
+        out += '<rect x="' + s + '" y="' + y + '" width="' + (x - s) + '" height="1"/>';
+      } else x++;
+    }
+  }
+  return '<g fill="' + color + '" shape-rendering="crispEdges">' + out + '</g>';
+}
+
+var HEART_ROWS = [" ##  ## ", "########", "########", " ###### ", "  ####  ", "   ##   "];
+var HEART_PX = (function () {
+  var on = {}, list = [], y, x;
+  for (y = 0; y < HEART_ROWS.length; y++) for (x = 0; x < 8; x++)
+    if (HEART_ROWS[y][x] === "#") { on[y + ":" + x] = 1; list.push([y, x]); }
+  var edge = list.filter(function (p) {
+    return !on[(p[0] - 1) + ":" + p[1]] || !on[(p[0] + 1) + ":" + p[1]]
+      || !on[p[0] + ":" + (p[1] - 1)] || !on[p[0] + ":" + (p[1] + 1)];
+  });
+  return { all: list, edge: edge };
+})();
+function rects(list) {
+  var out = "";
+  for (var i = 0; i < list.length; i++) out += '<rect x="' + list[i][1] + '" y="' + list[i][0] + '" width="1" height="1"/>';
+  return out;
+}
+var heartN = 0;
+function heartSvg(fill) {
+  var inner = "";
+  if (fill > 0) {
+    heartN++;
+    var w = Math.round(8 * Math.min(1, fill));
+    inner = '<clipPath id="hc' + heartN + '"><rect x="0" y="0" width="' + w + '" height="6"/></clipPath>'
+      + '<g clip-path="url(#hc' + heartN + ')">' + rects(HEART_PX.all) + '</g>';
+  }
+  return '<svg viewBox="0 0 8 6" aria-hidden="true" shape-rendering="crispEdges" fill="var(--lcd-ink)">'
+    + rects(HEART_PX.edge) + inner + '</svg>';
+}
+
+/* ============================ formatting ============================ */
+function fmtDur(ms) {
+  if (!isFinite(ms)) return "—";
+  var h = Math.floor(ms / HOUR);
+  var d = Math.floor(h / 24);
+  if (d >= 1) return d + "d " + (h % 24) + "h";
+  if (h >= 1) return h + "h " + Math.floor((ms % HOUR) / 60000) + "m";
+  return Math.max(0, Math.floor(ms / 60000)) + "m";
+}
+function shortDate(ms) {
+  var d = new Date(ms);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+/* ============================ render ============================ */
+var els = {
+  label: document.getElementById("scr-label"),
+  clock: document.getElementById("scr-clock"),
+  body: document.getElementById("scr-body"),
+  foot: document.getElementById("scr-foot"),
+  sprite: document.getElementById("sprite"),
+  name: document.getElementById("scr-name"),
+  hearts: document.getElementById("scr-hearts"),
+  connDot: document.getElementById("conn-dot"),
+  connText: document.getElementById("conn-text"),
+  connAction: document.getElementById("conn-action"),
+  connStamp: document.getElementById("conn-stamp")
+};
+
+function render() {
+  if (!pet) return;
+  var now = Date.now();
+  var sim = simulate(pet.birthMs, acts || [], now);
+  var species = dominantSport(sim.fed);
+  var stage = stageOf(sim.ageMs);
+  var mood = moodOf(sim.hp, sim.alive);
+
+  els.label.textContent = SCREENS[screenIdx];
+  els.clock.textContent = new Date(now).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  if (screenIdx === 0) renderHome(sim, species, stage, mood);
+  else if (screenIdx === 1) renderVitals(sim, species, stage, mood);
+  else if (screenIdx === 2) renderMeals(sim);
+  else renderGrave();
+}
+
+function petSvg(sim, species, stage, mood) {
+  var g;
+  if (!sim.alive) g = graveSprite();
+  else if (stage.egg) g = eggSprite(frame);
+  else g = bodySprite(mood, species, frame);
+  var bob = (sim.alive && !stage.egg && frame && mood !== "starving") ? -1 : 0;
+  return '<svg viewBox="0 0 16 16" width="104" height="104" aria-hidden="true">'
+    + '<g transform="translate(' + (8 - 8 * stage.scale) + ',' + (16 - 16 * stage.scale + bob * stage.scale) + ') scale(' + stage.scale + ')">'
+    + gridToSvg(g, "var(--lcd-ink)") + '</g></svg>';
+}
+
+function renderHome(sim, species, stage, mood) {
+  var hearts = "";
+  for (var i = 0; i < 5; i++) hearts += heartSvg(Math.max(0, Math.min(1, sim.hp / 20 - i)));
+  els.body.innerHTML =
+    '<div class="pet-stage">' + petSvg(sim, species, stage, mood) + '</div>' +
+    '<div class="petname">' + esc(pet.name.toUpperCase()) + (sim.alive ? "" : " †") + '</div>' +
+    '<div class="hearts">' + (sim.alive ? hearts : "") + '</div>';
+
+  if (!sim.alive) {
+    els.foot.innerHTML = 'LASTED ' + fmtDur(sim.ageMs).toUpperCase() + ' · PRESS CARE';
+  } else if (acts === null && !offline) {
+    els.foot.innerHTML = '<span class="blink">READING STRAVA…</span>';
+  } else if (sim.restingNow) {
+    els.foot.textContent = "RECOVERING · " + fmtDur(sim.restUntil - Date.now()).toUpperCase() + " LEFT";
+  } else if (mood === "starving" || mood === "hungry") {
+    els.foot.innerHTML = '<span class="blink">FADES IN ' + fmtDur(sim.hoursLeft * HOUR).toUpperCase() + '</span>';
+  } else {
+    els.foot.textContent = MOOD_WORD[mood] + " · FADES IN " + fmtDur(sim.hoursLeft * HOUR).toUpperCase();
+  }
+}
+
+function renderVitals(sim, species, stage, mood) {
+  var SP = { run: "RUNNER", ride: "ROLLER", swim: "SWIMMER", lift: "LIFTER", walk: "WANDERER" };
+  var rows = [
+    ["HEALTH", Math.round(sim.hp) + "/100"],
+    ["MOOD", MOOD_WORD[mood]],
+    ["STAGE", stage.name.toUpperCase()],
+    ["FORM", SP[species]],
+    ["AGE", fmtDur(sim.ageMs).toUpperCase()],
+    ["MEALS", sim.fed.length],
+    ["LAST FED", sim.lastMealAt ? fmtDur(Date.now() - sim.lastMealAt).toUpperCase() + " AGO" : "NEVER"],
+    ["BURN RATE", "12.5/DAY"]
+  ];
+  var html = '<div class="lines">';
+  for (var i = 0; i < rows.length; i++) html += '<div class="row"><span>' + rows[i][0] + '</span><span>' + esc(rows[i][1]) + '</span></div>';
+  html += '</div>';
+  els.body.innerHTML = html;
+  var need = Math.ceil((MAX_HP - sim.hp) / GAIN_RATE);
+  els.foot.textContent = sim.alive ? (need > 3 ? "NEEDS " + need + " EFFORT TO FILL" : "COMPLETELY FULL") : "NO LONGER WITH US";
+}
+
+function renderMeals(sim) {
+  if (!sim.fed.length) {
+    els.body.innerHTML = '<div class="lines"><h4>NO MEALS YET</h4><div>Anything you log from now on lands here.</div></div>';
+    els.foot.textContent = partial ? "SHOWING RECENT HISTORY ONLY" : "";
+    return;
+  }
+  var html = '<div class="lines scroll">';
+  for (var i = 0; i < Math.min(10, sim.fed.length); i++) {
+    var f = sim.fed[i];
+    var nm = (f.a.name || f.a.sport_type || "Activity");
+    if (nm.length > 17) nm = nm.slice(0, 16) + "…";
+    html += '<div class="row"><span>' + esc(nm) + '</span><span>+' + Math.round(f.gain) + ' · ' + shortDate(actTime(f.a)) + '</span></div>';
+  }
+  html += '</div>';
+  els.body.innerHTML = html;
+  els.foot.textContent = sim.fed.length + " MEALS THIS LIFE";
+}
+
+function renderGrave() {
+  var arch = pet.archive || [];
+  if (!arch.length) {
+    els.body.innerHTML = '<div class="lines"><h4>GRAVEYARD</h4><div>Empty. Keep it that way.</div></div>';
+    els.foot.textContent = "";
+    return;
+  }
+  var html = '<div class="lines scroll">';
+  for (var i = arch.length - 1; i >= 0 && i > arch.length - 11; i--) {
+    var p = arch[i];
+    html += '<div class="row"><span>' + esc(p.name) + '</span><span>' + fmtDur(p.diedMs - p.birthMs).toUpperCase() + '</span></div>';
+  }
+  html += '</div>';
+  els.body.innerHTML = html;
+  els.foot.textContent = arch.length + " LOST SO FAR";
+}
+
+/* ============================ connection panel ============================ */
+function setConn(kind, text, action) {
+  els.connDot.className = "dot " + kind;
+  els.connText.textContent = text;
+  if (action) {
+    els.connAction.hidden = false;
+    els.connAction.textContent = action.label;
+    els.connAction.onclick = action.fn;
+  } else {
+    els.connAction.hidden = true;
+    els.connAction.onclick = null;
+  }
+}
+function setStamp() {
+  els.connStamp.textContent = lastStamp ? "Last read " + new Date(lastStamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+}
+
+/* ============================ strava wiring ============================ */
+function isoLocal(ms) {
+  var d = new Date(ms);
+  function p(n) { return (n < 10 ? "0" : "") + n; }
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+
+function applyPayload(payload) {
+  if (!payload || !Array.isArray(payload.activities)) {
+    setConn("warn", "Strava answered in a shape this page didn't expect. Try reading again.", { label: "Read again", fn: refresh });
+    return;
+  }
+  acts = payload.activities;
+  partial = !!payload.has_next_page;
+  render();
+}
+
+function handleMcpError(err) {
+  var code = (err && err.code) || "upstream_error";
+  if (code === "needs_reauth") {
+    setConn("bad", "Strava has signed you out. Reconnect Strava in your Claude connector settings, then reload this page.");
+  } else if (code === "server_not_connected" || code === "selection_required") {
+    setConn("bad", "No Strava connector is available here. Add Strava under Claude's connectors, then reload.");
+  } else if (code === "not_granted" || code === "consent_required") {
+    acts = null;
+    setConn("warn", "This page doesn't have permission to read Strava yet.", { label: "Ask again", fn: function () { location.reload(); } });
+  } else if (code === "blocked_by_policy" || code === "approval_required") {
+    acts = null;
+    setConn("bad", "Reading Strava is blocked by a policy on this account.");
+  } else if (code === "tool_error") {
+    setConn("warn", "Strava rejected the request: " + ((err && err.message) || "no detail given") + ".", { label: "Read again", fn: refresh });
+  } else if (code === "rate_limited" || code === "server_unavailable" || code === "upstream_error") {
+    setConn("warn", "Strava didn't answer just now. Showing the last read." + (retried ? "" : " Trying once more."), { label: "Read again", fn: refresh });
+    if (!retried) {
+      retried = true;
+      var wait = (err && err.retryAfterMs) || (2000 + Math.random() * 3000);
+      setTimeout(refresh, Math.min(wait, 60000));
+    }
+  } else {
+    setConn("warn", "Couldn't read Strava (" + code + "). Reload the page to try again.");
+  }
+  render();
+}
+
+function startWatch() {
+  if (!mcpNs || !pet) return;
+  if (unwatch) { unwatch(); unwatch = null; }
+  var from = Math.min(pet.birthMs, Date.now()) - 2 * 86400000;
+  unwatch = mcpNs.watchTool(SERVER, TOOL,
+    { first: 100, range_start: isoLocal(from) },
+    function (ev) {
+      if (ev.type === "data") {
+        retried = false;
+        lastStamp = (ev.result && ev.result.cache && ev.result.cache.storedAt) || Date.now();
+        applyPayload(ev.result && ev.result.payload);
+        setConn("ok", "Reading your Strava activity." + (partial ? " Showing your 100 most recent sessions." : ""));
+        setStamp();
+      } else {
+        handleMcpError(ev.error);
+      }
+    },
+    { cache: { staleTime: 120000 }, refetchInterval: 300000 }
+  );
+}
+
+function refresh() {
+  if (!mcpNs) return;
+  setConn("warn", "Checking Strava…");
+  mcpNs.invalidate(SERVER, TOOL).catch(function () {}).then(function () { startWatch(); });
+}
+
+/* ============================ boot ============================ */
+function boot() {
+  pet = localLoad() || newPet();
+  render();
+  setInterval(function () { frame = frame ? 0 : 1; if (screenIdx === 0) render(); }, 620);
+  setInterval(render, 60000);
+
+  if (!window.claude || !window.claude.use) {
+    offline = true;
+    render();
+    setConn("warn", "Standalone build \u2014 there's no Strava connection here yet, so nothing can feed your puffling. It will hatch, starve and die right on schedule.",
+      { label: "Why?", fn: function () { window.open(REPO_URL + "#feeding-it-outside-claude", "_blank", "noopener"); } });
+    return;
+  }
+
+  window.claude.use("db").then(function (db) {
+    if (!db) return;
+    try {
+      dbDoc = db.doc("pet/state");
+      dbDoc.onSnapshot(function (snap) {
+        if (!snap.exists) { if (!seededDb) { seededDb = true; savePet(); } return; }
+        var d = snap.data() || {};
+        if (typeof d.birthMs === "number") {
+          pet = { name: d.name || "Pip", birthMs: d.birthMs, archive: Array.isArray(d.archive) ? d.archive.slice() : [] };
+          localSave(pet);
+          render();
+          startWatch();
+        }
+      }, function () {});
+    } catch (e) {}
+  }).catch(function () {});
+
+  window.claude.use("mcp").then(function (ns) {
+    if (!ns) {
+      setConn("bad", "Strava isn't reachable from this page. Open it from your own Claude account to link your account.");
+      return;
+    }
+    mcpNs = ns;
+    setConn("warn", "Asking for access to your Strava…");
+    startWatch();
+  }).catch(function () {
+    setConn("bad", "Strava isn't reachable from this page right now.");
+  });
+}
+
+/* ============================ buttons ============================ */
+document.getElementById("btn-a").onclick = function () {
+  if (mcpNs) refresh();
+  screenIdx = 0; render();
+};
+document.getElementById("btn-b").onclick = function () { screenIdx = (screenIdx + 1) % SCREENS.length; render(); };
+document.getElementById("btn-c").onclick = openCare;
+
+/* ============================ care modal ============================ */
+var modal = document.getElementById("modal");
+var mTitle = document.getElementById("modal-title");
+var mText = document.getElementById("modal-text");
+var mInput = document.getElementById("modal-input");
+var mActions = document.getElementById("modal-actions");
+
+function closeModal() { modal.hidden = true; }
+function openCare() {
+  var sim = simulate(pet.birthMs, acts || [], Date.now());
+  mInput.value = pet.name;
+  if (sim.alive) {
+    mTitle.textContent = "Care menu";
+    mText.textContent = "Rename your puffling, or abandon this one and start a fresh egg.";
+    mInput.hidden = false;
+    mActions.innerHTML = '<button class="primary" id="m-save">Save name</button>'
+      + '<button class="ghost" id="m-cancel">Close</button>'
+      + '<button class="danger" id="m-new">Start a new egg</button>';
+  } else {
+    mTitle.textContent = pet.name + " is gone";
+    mText.textContent = "It lasted " + fmtDur(sim.ageMs) + ". Name the next one.";
+    mInput.value = "";
+    mInput.placeholder = "New name";
+    mInput.hidden = false;
+    mActions.innerHTML = '<button class="primary" id="m-new">Hatch it</button><button class="ghost" id="m-cancel">Not yet</button>';
+  }
+  modal.hidden = false;
+  mInput.focus();
+
+  var save = document.getElementById("m-save");
+  if (save) save.onclick = function () {
+    var v = mInput.value.trim();
+    if (v) { pet.name = v; savePet(); render(); }
+    closeModal();
+  };
+  document.getElementById("m-cancel").onclick = closeModal;
+  var nw = document.getElementById("m-new");
+  if (nw) nw.onclick = function () {
+    var s = simulate(pet.birthMs, acts || [], Date.now());
+    var arch = (pet.archive || []).slice();
+    arch.push({ name: pet.name, birthMs: pet.birthMs, diedMs: s.diedMs || Date.now() });
+    if (arch.length > 40) arch = arch.slice(-40);
+    var nm = mInput.value.trim() || "Pip";
+    pet = { name: nm, birthMs: Date.now(), archive: arch };
+    savePet();
+    screenIdx = 0;
+    closeModal();
+    render();
+    startWatch();
+  };
+}
+modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+
+boot();
+</script>
+</body>
+</html>
